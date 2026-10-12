@@ -1,0 +1,99 @@
+{
+ "regions": {
+  "0": {
+   "corpus": "management",
+   "name": "Dynamic Pricing and Demand Forecasting",
+   "n": 8500,
+   "name_raw_decode": "Dynamic Pricing and Demand Forecasting",
+   "description_raw_decode": "This document presents a study on the design of optimal dynamic pricing and inventory management systems for supply chains, focusing on a market model where firms compete by setting prices. It introduces a novel approach using a combination of stochastic and deterministic elements to determine optimal prices, showing that such a mixed approach can lead to better outcomes than either method alone, especially in terms of profitability and inventory efficiency.",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "1": {
+   "corpus": "management",
+   "name": "Group dynamics and decision-making",
+   "n": 7107,
+   "name_raw_decode": "Group dynamics and decision-making",
+   "description_raw_decode": "This document explores how the structure of a group\u2014specifically, the presence of a majority versus a minority\u2014impacts the development of trust and cooperation in team settings. It finds that when a majority is present, individuals are more likely to develop trust and cooperation, and that this effect is influenced by whether the majority is composed of individuals with high or low social skills.",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "2": {
+   "corpus": "management",
+   "name": "Employee well-being and organizational behavior",
+   "n": 10253,
+   "name_raw_decode": "Employee well-being and organizational behavior",
+   "description_raw_decode": "This document explores the relationship between leadership and organizational justice in the context of employee well-being, specifically focusing on how perceived organizational justice\u2014such as fairness in decision-making and treatment\u2014affects employees' willingness to engage in leadership behaviors. It finds that employees are more likely to take on leadership roles when they perceive their contributions to be fairly recognized, and that this effect is stronger when employees feel their efforts are fairly",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "3": {
+   "corpus": "management",
+   "name": "Organizational Change and Learning",
+   "n": 9646,
+   "name_raw_decode": "Organizational Change and Learning",
+   "description_raw_decode": "This document explores how organizational culture and leadership influence the development and effectiveness of change management in organizations, particularly through the lens of a study on public administration. It argues that change management is shaped by the interplay of leadership styles, organizational values, and the broader cultural context, and that understanding these dynamics can help organizations more effectively navigate and implement change.",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "4": {
+   "corpus": "management",
+   "name": "Corporate governance and innovation strategy",
+   "n": 7946,
+   "name_raw_decode": "Corporate governance and innovation strategy",
+   "description_raw_decode": "This document examines how organizational structure and leadership influence the adoption of internationalization strategies in firms, focusing on the role of executive judgment and the interplay between internal and external factors. It argues that firms with more entrepreneurial leadership are more likely to adopt internationalization strategies, and that the structure of the firm\u2014particularly the balance between internal and external leadership\u2014shapes the effectiveness and timing of these strategies.",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "5": {
+   "corpus": "management",
+   "name": "Employee retention and performance evaluation",
+   "n": 9075,
+   "name_raw_decode": "Employee retention and performance evaluation",
+   "description_raw_decode": "This document examines how job characteristics and employee selection influence the development of managerial judgment in organizational settings, focusing on the role of personal and organizational factors in shaping managerial effectiveness. It analyzes data from a sample of 236 managers in the service industry to explore how different job attributes and selection processes affect managerial judgment, with a particular emphasis on the interplay between job demands, employee selection, and performance outcomes",
+   "source": "k-means (K=6) on the new title+abstract adapted PCA-50; named by decoding the region mean"
+  },
+  "6": {
+   "corpus": "multiagent",
+   "name": "Multi-Agent Reasoning System",
+   "n": 3654,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  },
+  "7": {
+   "corpus": "multiagent",
+   "name": "Multi-Agent Formation Planning",
+   "n": 3762,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  },
+  "8": {
+   "corpus": "multiagent",
+   "name": "Multi-Agent Reinforcement Learning",
+   "n": 2362,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  },
+  "9": {
+   "corpus": "multiagent",
+   "name": "Multi-Agent LLM Evaluation",
+   "n": 3853,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  },
+  "10": {
+   "corpus": "multiagent",
+   "name": "Multi-Agent Social Dilemma Learning",
+   "n": 2618,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  },
+  "11": {
+   "corpus": "multiagent",
+   "name": "Distributed consensus optimization",
+   "n": 1800,
+   "source": "inherited from viz_data.parquet cluster (old PDF-text embedding space)"
+  }
+ },
+ "name_prompt": "This document is a management research paper. Name its research area in 3 to 6 words using standard management terminology. Reply with only the name.",
+ "desc_prompt": "In one or two sentences, what is this document about?",
+ "decode": "greedy, Qwen3-4B Doc2LoRA checkpoint-20000; adapted region mean mapped back with exact M^-1, unit per slot",
+ "round_trip_cos": [
+  1.0000000000000002,
+  1.0000000000000002,
+  1.0000000000000002,
+  1.0000000000000002,
+  1.0000000000000002,
+  1.0000000000000002
+ ]
+}

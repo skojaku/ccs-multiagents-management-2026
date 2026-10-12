@@ -322,3 +322,5 @@ select {
 .detail__meta { font-size: 12px; color: #b4b2ab; margin-bottom: 8px; }
 .detail__links { display: flex; gap: 14px; font-size: 12.5px; }
 .detail__links a { color: #eb6834; }
+
+.layer-note { font-size: 12px; line-height: 1.4; color: #b4b2ab; margin: -2px 0 12px; }

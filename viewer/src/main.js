@@ -12,6 +12,7 @@ const REGION = 'RegionId'; // 0-5 management regions, 6-11 multi-agent regions
 const YEAR = 'Year';
 const COLOR_ID = 'ColorId'; // category used for color; DIM when a paper is filtered out
 const DIM = 100;
+const HIDDEN = 101; // papers without coordinates in the current layer
 const POSITION = '_helios_visuals_position';
 
 // The poster's palette: blue = management, orange = multi-agent AI.
@@ -33,7 +34,17 @@ const state = {
   colorMode: 'corpus',
   nodeOpacity: 0.85,
   nodeSize: 1.6,
+  layer: 'poster',
 };
+
+const LAYERS = [
+  { value: 'poster', label: 'Poster', note: 'The poster map. Multi-agent papers are embedded from their PDF text, management papers from title and abstract.' },
+  { value: 'abstract', label: 'Abstract', note: 'Both fields embedded from title and abstract, no alignment. The 60 multi-agent papers without a usable abstract are not shown. Multi-agent regions are inherited from the poster; management regions are re-clustered and named by decoding.' },
+  { value: 'translate', label: 'Abstract, shifted', note: 'Same embeddings as Abstract, with each field shifted to a common mean (translation and rescaling), t-SNE recomputed. The fields still occupy mostly separate regions.' },
+];
+
+const layer = () => data.layers[state.layer];
+const isHidden = (id) => layer().x[id] === null;
 
 function setStatus(message) {
   viewer.dataset.status = message ?? '';
@@ -48,22 +59,21 @@ async function loadData() {
 }
 
 async function createNetwork() {
-  const n = data.x.length;
+  const n = data.title.length;
   const network = await HeliosNetwork.create({ directed: false, initialNodes: 0 });
   const nodes = network.addNodes(n);
   // Helios expects at least one edge for its edge buffers; this one is never drawn (edge opacity 0).
   network.addEdges([{ from: nodes[0], to: nodes[1] }]);
   network.nodeAttribute(LABEL, (_value, id) => data.title[id], { type: AttributeType.String });
   network.nodeAttribute(CORPUS, (_value, id) => data.corpus[id], { type: AttributeType.Int });
-  network.nodeAttribute(REGION, (_value, id) => data.region[id], { type: AttributeType.Int });
   network.nodeAttribute(YEAR, (_value, id) => data.year[id], { type: AttributeType.Int });
   network.nodeAttribute(COLOR_ID, (_value, id) => data.corpus[id], { type: AttributeType.Int });
   network.defineNodeAttribute(POSITION, AttributeType.Float, 3);
   network.withBufferAccess(() => {
     const positions = network.getNodeAttributeBuffer(POSITION)?.view;
     for (let index = 0; index < n; index += 1) {
-      positions[index * 3] = data.x[index];
-      positions[index * 3 + 1] = data.y[index];
+      positions[index * 3] = data.layers.poster.x[index];
+      positions[index * 3 + 1] = data.layers.poster.y[index];
       positions[index * 3 + 2] = 0;
     }
   });
@@ -72,15 +82,17 @@ async function createNetwork() {
 }
 
 function matches(id) {
+  if (isHidden(id)) return false;
   if (!state.corpora.has(data.corpus[id])) return false;
   return !state.search || lowerTitles[id].includes(state.search);
 }
 
 const DIM_COLOR = [0.3, 0.3, 0.3, 0.35];
+const HIDDEN_COLOR = [0, 0, 0, 0];
 
 function applyColorMode(helios) {
-  const ids = state.colorMode === 'region' ? [...REGION_COLORS.keys(), DIM] : [0, 1, DIM];
-  const colors = state.colorMode === 'region' ? [...REGION_COLORS, DIM_COLOR] : [...CORPUS_COLORS, DIM_COLOR];
+  const ids = state.colorMode === 'region' ? [...REGION_COLORS.keys(), DIM, HIDDEN] : [0, 1, DIM, HIDDEN];
+  const colors = state.colorMode === 'region' ? [...REGION_COLORS, DIM_COLOR, HIDDEN_COLOR] : [...CORPUS_COLORS, DIM_COLOR, HIDDEN_COLOR];
   helios.nodeMapper.channel('color').from(COLOR_ID).categorical(ids, colors).done();
 }
 
@@ -88,12 +100,15 @@ function applyVisibility(helios) {
   const { network } = helios;
   const byRegion = state.colorMode === 'region';
   network.nodeAttribute(COLOR_ID, (_value, id) => {
+    if (isHidden(id)) return HIDDEN;
     if (!matches(id)) return DIM;
-    return byRegion ? data.region[id] : data.corpus[id];
+    return byRegion ? layer().region[id] : data.corpus[id];
   }, { type: AttributeType.Int });
   network.bumpNodeAttributeVersion?.(COLOR_ID);
   const base = state.nodeSize;
-  helios.nodeMapper.channel('size').from(COLOR_ID).categorical([...REGION_COLORS.keys(), DIM], [...REGION_COLORS.keys()].map(() => base * (state.search ? 2.4 : 1)).concat([base * (state.search ? 0.6 : 1)])).done();
+  const sizeIds = [...REGION_COLORS.keys(), DIM, HIDDEN];
+  const sizes = [...REGION_COLORS.keys()].map(() => base * (state.search ? 2.4 : 1)).concat([base * (state.search ? 0.6 : 1), 0]);
+  helios.nodeMapper.channel('size').from(COLOR_ID).categorical(sizeIds, sizes).done();
   helios.markMappersDirty?.();
   helios.requestRender();
 }
@@ -112,11 +127,12 @@ function topMatches(limit = 12) {
 }
 
 function nearest(id, count) {
-  const dist = new Float32Array(data.x.length);
+  const { x, y } = layer();
+  const dist = new Float32Array(x.length);
   for (let i = 0; i < dist.length; i += 1) {
-    const dx = data.x[i] - data.x[id];
-    const dy = data.y[i] - data.y[id];
-    dist[i] = dx * dx + dy * dy;
+    const dx = x[i] - x[id];
+    const dy = y[i] - y[id];
+    dist[i] = x[i] === null ? Infinity : dx * dx + dy * dy;
   }
   return Array.from(dist.keys()).sort((a, b) => dist[a] - dist[b]).slice(0, count);
 }
@@ -128,7 +144,7 @@ function scholarUrl(title) {
 function describe(id) {
   const rows = [
     ['Field', CORPUS_NAMES[data.corpus[id]]],
-    ['Region', data.regionNames[data.region[id]]],
+    ['Region', layer().regionNames[layer().region[id]]],
   ];
   if (data.year[id]) rows.push(['Year', data.year[id]]);
   return rows;
@@ -136,15 +152,21 @@ function describe(id) {
 
 function mountPanels(helios) {
   const ui = new HeliosUI({ helios, theme: 'dark', allowDrag: true, layerName: 'map-ui', persistenceIndicators: false });
-  const counts = [0, 0];
-  for (const c of data.corpus) counts[c] += 1;
+  const statValues = [el('strong'), el('strong')];
+  const updateCounts = () => {
+    const counts = [0, 0];
+    data.corpus.forEach((c, id) => { if (!isHidden(id)) counts[c] += 1; });
+    statValues[0].textContent = counts[0].toLocaleString();
+    statValues[1].textContent = counts[1].toLocaleString();
+  };
+  updateCounts();
 
   const browser = el('div', { className: 'analytics-panel' });
   browser.append(el('div', {
     className: 'stats',
     children: [
-      el('div', { className: 'stat', children: [el('span', { text: 'Management' }), el('strong', { text: counts[0].toLocaleString() })] }),
-      el('div', { className: 'stat', children: [el('span', { text: 'Multi-agent AI' }), el('strong', { text: counts[1].toLocaleString() })] }),
+      el('div', { className: 'stat', children: [el('span', { text: 'Management' }), statValues[0]] }),
+      el('div', { className: 'stat', children: [el('span', { text: 'Multi-agent AI' }), statValues[1]] }),
     ],
   }));
 
@@ -191,6 +213,41 @@ function mountPanels(helios) {
   ui.createPanel({ id: 'map-browser', title: 'Search', content: browser, dock: 'top-left', position: { x: 16, y: 16 }, width: 340, minWidth: 340 });
 
   const view = el('div', { className: 'analytics-panel' });
+  const layerNote = el('div', { className: 'layer-note', text: LAYERS[0].note });
+  const setLayer = (value) => {
+    state.layer = value;
+    const L = layer();
+    let cx = 0;
+    let cy = 0;
+    let n = 0;
+    for (let i = 0; i < L.x.length; i += 1) if (L.x[i] !== null) { cx += L.x[i]; cy += L.y[i]; n += 1; }
+    cx /= n;
+    cy /= n;
+    helios.network.withBufferAccess(() => {
+      const pos = helios.network.getNodeAttributeBuffer(POSITION)?.view;
+      for (let i = 0; i < L.x.length; i += 1) {
+        pos[i * 3] = L.x[i] ?? cx; // papers without coordinates are hidden, parked at the centre
+        pos[i * 3 + 1] = L.y[i] ?? cy;
+      }
+    });
+    helios.network.bumpNodeAttributeVersion?.(POSITION);
+    helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'layer-change' });
+    applyColorMode(helios);
+    applyVisibility(helios);
+    renderLegend();
+    renderResults();
+    updateCounts();
+    layerNote.textContent = LAYERS.find((l) => l.value === value).note;
+    helios.requestFrameNetwork({ paddingPx: 80 });
+    requestAnimationFrame(() => requestAnimationFrame(() => { helios.requestFrameNetwork({ paddingPx: 80 }); helios.requestRender(); }));
+  };
+  view.append(createSegmented({
+    label: 'Map',
+    value: state.layer,
+    options: LAYERS.map(({ value, label }) => ({ value, label })),
+    onChange: setLayer,
+  }).root);
+  view.append(layerNote);
   view.append(createSegmented({
     label: 'Color',
     value: state.colorMode,
@@ -200,7 +257,7 @@ function mountPanels(helios) {
   const legend = el('div', { className: 'legend' });
   const renderLegend = () => {
     const entries = state.colorMode === 'region'
-      ? data.regionNames.map((name, i) => [name, REGION_COLORS[i]])
+      ? layer().regionNames.map((name, i) => [name, REGION_COLORS[i]])
       : CORPUS_NAMES.map((name, i) => [name, CORPUS_COLORS[i]]);
     legend.replaceChildren(...entries.map(([name, c]) => el('div', { className: 'legend__row', children: [
       el('span', { className: 'result__dot', attrs: { style: `background: rgb(${c.slice(0, 3).map((v) => Math.round(v * 255)).join(',')})` } }),

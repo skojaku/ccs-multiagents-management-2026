@@ -4,7 +4,7 @@ Source of the page served at `/map/`. 70,636 papers (52,527 management, 18,109 m
 t-SNE coordinates of the poster, drawn with [Helios Web](https://heliosweb.io/) (`helios-web` 0.10.9,
 `helios-network` 0.10.x, MIT). Built from the Helios Web Builder Skill's analytics template.
 
-- `data-src/`: coordinates and region (`joint_map.csv.gz`, from the poster), titles, years and arXiv ids
+- `data-src/`: coordinates and region of the poster map (`joint_map.csv.gz`), the title+abstract maps (`abstract_map.csv.gz`, `abstract_map_regions.json`, from `2026-10-12-align-literatures` on aster), titles, years and arXiv ids
   (`joint_map_ids.csv.gz`), region names (`joint_labels.json`).
 - `scripts/prepare_data.py`: writes `public/map-data.json` (columnar; git-ignored, copied to `../map/` by the build).
 - `src/main.js`: scene, search, colour modes, hover card, click details.
