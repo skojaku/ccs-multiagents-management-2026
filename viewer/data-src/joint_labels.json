@@ -1,0 +1,26 @@
+{
+ "management": {
+  "0": "Dynamic Pricing and Inventory Management",
+  "1": "Experience and Managerial Influence",
+  "2": "Group diversity and decision-making dynamics",
+  "3": "Organizational change leadership dynamics",
+  "4": "Organizational justice and employee creativity",
+  "5": "Board influence on entrepreneurial success"
+ },
+ "multiagent": {
+  "0": "Multi-Agent Reasoning System",
+  "1": "Multi-Agent Formation Planning",
+  "2": "Multi-Agent Reinforcement Learning",
+  "3": "Multi-Agent LLM Evaluation",
+  "4": "Multi-Agent Social Dilemma Learning",
+  "5": "Distributed consensus optimization"
+ },
+ "management_sizes": {
+  "0": 8508,
+  "1": 9109,
+  "2": 7060,
+  "3": 9662,
+  "4": 10223,
+  "5": 7965
+ }
+}

@@ -1,0 +1,4 @@
+node_modules/
+viewer/node_modules/
+viewer/public/map-data.json
+.DS_Store
