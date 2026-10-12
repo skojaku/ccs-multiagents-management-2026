@@ -26,6 +26,8 @@
   p { margin: 0 0 12px; }
   a { color: inherit; text-decoration-color: var(--orange); text-underline-offset: 3px; }
   .muted { color: var(--ink2); font-size: 15px; }
+  h2 { font-size: 21px; margin: 28px 0 10px; font-weight: 600; }
+  .fig { display: block; width: 100%; height: auto; border: 1px solid var(--rule); background: #fff; }
 </style>
 </head>
 <body>
@@ -35,9 +37,18 @@
   <p class="authors">Sadamori Kojaku<sup>1</sup>, Bryan Acton<sup>2</sup>, Mengying Li<sup>2</sup>, Chand Sahil Mansuri<sup>1</sup>, Xin (Vision) Wang<sup>1</sup>, Yong Wang<sup>1</sup>, Rory Eckardt<sup>2</sup>, Dhaval Patel<sup>3</sup></p>
   <p class="affil"><sup>1</sup>Systems Science and Industrial Engineering, Binghamton University · <sup>2</sup>School of Management, Binghamton University · <sup>3</sup>IBM T. J. Watson Research Center</p>
   <hr>
-  <p class="soon">This page is under construction.</p>
-  <p>The poster, data, and code will be posted here. The poster is presented at the 2026 Conference on Complex Systems in Binghamton, NY, on October 14 and 15, 2026 (Group 2, 12:00 to 1:30 pm EDT).</p>
-  <p>The embeddings come from Doc2LoRA. See the <a href="https://skojaku.github.io/doc2lora-embedding/">Doc2LoRA project page</a>.</p>
+  <p class="soon">Are we reinventing teams?</p>
+  <p>Doc2LoRA turns each paper into a LoRA adapter, so every point in the embedding space is an LLM you can ask. We place 52,527 management papers and 18,109 multi-agent AI papers in one space, and ask the sparse regions of multi-agent AI research what could be there. Management papers do not fill the holes we found. The next step is to align the two literatures and test again.</p>
+  <p>The poster is presented at the 2026 Conference on Complex Systems in Binghamton, NY, on October 14 and 15, 2026 (board 14, Group 2, 12:00 to 1:30 pm EDT).</p>
+  <hr>
+  <h2>Poster</h2>
+  <p><a href="assets/Poster_CCS_2026_Kojaku_247.pdf">Download the poster (PDF, 36 × 48 in)</a></p>
+  <p><a href="assets/Poster_CCS_2026_Kojaku_247.pdf"><img class="fig" src="assets/poster-preview.png" alt="Preview of the poster" style="max-width: 420px"></a></p>
+  <h2>Map of the two literatures</h2>
+  <p>t-SNE of both corpora in the Doc2LoRA space, with region names answered by the LLM at each region's average. <a href="assets/joint-map.svg">Vector version (SVG)</a>. An interactive version is coming.</p>
+  <p><img class="fig" src="assets/joint-map.png" alt="Joint map of 52,527 management papers and 18,109 multi-agent AI papers"></p>
+  <h2>Code</h2>
+  <p>The Doc2LoRA method, code and results are in the <a href="https://github.com/skojaku/doc2lora-embedding">reproduction repository</a>, with the <a href="https://skojaku.github.io/doc2lora-embedding/">Doc2LoRA project page</a>.</p>
   <hr>
   <p class="muted">Contact: Sadamori Kojaku, Binghamton University.</p>
 </main>
