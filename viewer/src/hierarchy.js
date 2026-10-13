@@ -4,7 +4,7 @@ import { Helios, HeliosUI } from 'helios-web';
 import { createChecklist, createHoverCard, createSearch, createSegmented, createSlider, el } from './ui-controls.js';
 import './styles.css';
 
-// Hierarchical map: a bisecting k-means tree per field (depth 4, 31 nodes each); zooming in opens a node into its two
+// Hierarchical map: a bisecting k-means tree per field (depth up to 7); zooming in opens a node into its two
 // children. Positions are fixed t-SNE coordinates (2D or 3D) of the joint space in which management is translated
 // onto multi-agent AI.
 
@@ -23,11 +23,13 @@ const DIM_COLOR = [0.3, 0.3, 0.3, 0.35];
 const HIDDEN_COLOR = [0, 0, 0, 0];
 // Clusters overlap in the map, so their spread says little about depth; levels open by zoom instead. A node splits
 // into its children once the map is magnified, relative to the framed whole map, by at least OPEN_AT[child depth].
-const OPEN_AT = [0, 0, 1.7, 3, 5.5];
+const OPEN_AT = [0, 0, 1.7, 3, 5.5, 9, 15, 25];
 
 let data = null; // { title, arxiv, year, corpus } from map-data.json plus hier-data.json
 let nodes = [];
 let children = [];
+let dfs = []; // node indices in depth-first order, so tree neighbours are neighbours here
+let dfsRank = [];
 let lowerTitles = [];
 
 const state = { search: '', corpora: new Set([0, 1]), colorMode: 'auto', nodeOpacity: 0.85, nodeSize: DIM3 ? 0.25 : 1.6, shown: [] };
@@ -55,6 +57,25 @@ function assignColors() {
   nodes.forEach((n) => { if (n.parent < 0) n.color = n.corpus === 0 ? [0.165, 0.471, 0.839, 1] : [0.922, 0.408, 0.204, 1]; });
 }
 
+const lighten = (c) => c.slice(0, 3).map((v) => v + (1 - v) * 0.35);
+
+// Colours for the clusters shown right now: hues run along the tree order within each field's band (related clusters
+// stay close in hue) while lightness cycles through four steps, so neighbours at any depth remain easy to tell apart.
+const BANDS = { 0: [180, 290], 1: [-15, 65] };
+const LIGHTNESS = [0.42, 0.64, 0.53, 0.74];
+function zoomPalette(shown) {
+  const colors = new Map();
+  for (const corpus of [0, 1]) {
+    const list = shown.filter((i) => nodes[i].corpus === corpus).sort((a, b) => dfsRank[a] - dfsRank[b]);
+    const [lo, hi] = BANDS[corpus];
+    list.forEach((i, r) => {
+      const hue = (((lo + (hi - lo) * (r + 0.5) / list.length) % 360) + 360) % 360;
+      colors.set(i, [...hslToRgb(hue, 0.78, LIGHTNESS[r % 4]), 1]);
+    });
+  }
+  return colors;
+}
+
 const ancestorAtDepth = (i, depth) => { let k = i; while (nodes[k].depth > depth) k = nodes[k].parent; return k; };
 const pathOf = (i) => { const out = []; for (let k = i; k >= 0; k = nodes[k].parent) out.unshift(k); return out; };
 const rgbCss = (c) => `rgb(${c.slice(0, 3).map((v) => Math.round(v * 255)).join(',')})`;
@@ -67,6 +88,11 @@ async function loadData() {
   nodes = hier.nodes;
   children = nodes.map(() => []);
   nodes.forEach((n, i) => { if (n.parent >= 0) children[n.parent].push(i); });
+  dfs = [];
+  const visit = (i) => { dfs.push(i); children[i].forEach(visit); };
+  nodes.forEach((n, i) => { if (n.parent < 0) visit(i); });
+  dfsRank = new Array(nodes.length);
+  dfs.forEach((i, r) => { dfsRank[i] = r; });
   assignColors();
   lowerTitles = base.title.map((t) => t.toLowerCase());
   return {
@@ -118,6 +144,7 @@ function colorNode(id) {
 function applyColors(helios) {
   const { network } = helios;
   const field = state.colorMode === 'field';
+  const auto = state.colorMode === 'auto';
   network.nodeAttribute(COLOR_ID, (_v, id) => {
     if (isHidden(id)) return HIDDEN;
     if (!matches(id)) return DIM;
@@ -125,7 +152,7 @@ function applyColors(helios) {
   }, { type: AttributeType.Int });
   network.bumpNodeAttributeVersion?.(COLOR_ID);
   const nodeIds = nodes.map((_n, i) => i);
-  const colors = nodes.map((n, i) => (field ? nodes[pathOf(i)[0]].color : n.color));
+  const colors = nodes.map((n, i) => (field ? nodes[pathOf(i)[0]].color : auto ? (state.zoomColors?.get(i) ?? n.color) : n.color));
   helios.nodeMapper.channel('color').from(COLOR_ID).categorical([...nodeIds, DIM, HIDDEN], [...colors, DIM_COLOR, HIDDEN_COLOR]).done();
   const base = state.nodeSize * (state.search ? 2.4 : 1);
   helios.nodeMapper.channel('size').from(COLOR_ID)
@@ -156,6 +183,18 @@ function screenScale(vp, c, width, height) {
     best = Math.max(best, Math.hypot(q.x - p.x, q.y - p.y));
   }
   return { p, scale: best };
+}
+
+// A label wears the colour of the cluster that paints its papers in the current colour mode.
+function labelRgb(i) {
+  const n = nodes[i];
+  if (state.colorMode === 'auto') return state.zoomColors?.get(i) ?? n.color;
+  if (state.colorMode === 'field') return nodes[pathOf(i)[0]].color;
+  return nodes[ancestorAtDepth(i, Math.min(Number(state.colorMode), n.depth))].color;
+}
+
+function paintLabels() {
+  nodes.forEach((_n, i) => { labelEls[i].style.color = rgbCss(lighten(labelRgb(i))); });
 }
 
 function layoutLabels(helios) {
@@ -193,6 +232,8 @@ function layoutLabels(helios) {
   if (signature !== state.signature) {
     state.signature = signature;
     state.shownSet = new Set(shown);
+    state.zoomColors = zoomPalette(shown);
+    paintLabels();
     if (state.colorMode === 'auto') {
       clearTimeout(state.recolorTimer);
       state.recolorTimer = setTimeout(() => applyColors(helios), 160);
@@ -205,7 +246,6 @@ function mountLabels(helios) {
   nodes.forEach((n, i) => {
     const label = el('div', { className: 'tree-label', text: n.name, attrs: { title: `${n.n.toLocaleString()} papers` } });
     label.dataset.depth = String(n.depth);
-    label.style.color = rgbCss(n.labelColor ?? n.color);
     label.hidden = true;
     labelLayer.append(label);
     labelEls.push(label);
@@ -379,12 +419,12 @@ function mountPanels(helios) {
     options: [{ value: '2', label: '2D' }, { value: '3', label: '3D' }],
     onChange: (value) => { if ((value === '3') !== DIM3) location.search = value === '3' ? '?dim=3' : ''; },
   }).root);
-  view.append(el('div', { className: 'layer-note', text: 'Zoom in and a cluster opens into its two sub-clusters (four levels per field). Click a label for its description. Management papers are shifted onto multi-agent AI by one translation before the map is drawn. 70,576 papers (60 multi-agent papers without an abstract are left out).' }));
+  view.append(el('div', { className: 'layer-note', text: 'Zoom in and a cluster opens into its two sub-clusters (up to seven levels per field). Click a label for its description. Management papers are shifted onto multi-agent AI by one translation before the map is drawn. 70,576 papers (60 multi-agent papers without an abstract are left out).' }));
   view.append(createSegmented({
     label: 'Color',
     value: state.colorMode,
     options: [{ value: 'auto', label: 'Zoom' }, { value: 'field', label: 'Field' }, { value: '1', label: 'L1' }, { value: '2', label: 'L2' }, { value: '3', label: 'L3' }, { value: '4', label: 'L4' }],
-    onChange: (value) => { state.colorMode = value; applyColors(helios); },
+    onChange: (value) => { state.colorMode = value; applyColors(helios); paintLabels(); },
   }).root);
   view.append(createSlider({ label: 'Node size', value: state.nodeSize, min: DIM3 ? 0.05 : 0.5, max: DIM3 ? 2 : 6, step: DIM3 ? 0.05 : 0.1, onInput: (v) => { state.nodeSize = v; applyColors(helios); } }).root);
   view.append(createSlider({ label: 'Opacity', value: state.nodeOpacity, min: 0.1, max: 1, step: 0.01, onInput: (v) => { state.nodeOpacity = v; helios.nodeOpacityScale(v); helios.requestRender(); } }).root);
@@ -433,6 +473,7 @@ async function bootstrap() {
     layout: { type: 'static' },
   });
   await helios.ready;
+  if (helios.renderer?.camera) helios.renderer.camera.maxZoom = 400; // the default (30) stops short of the deepest levels
   helios.stopLayout?.('map-static');
   helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'initial-position' });
   helios.edgeOpacityBase(0).edgeOpacityScale(0);
