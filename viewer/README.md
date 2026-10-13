@@ -6,7 +6,7 @@ t-SNE coordinates of the poster, drawn with [Helios Web](https://heliosweb.io/) 
 
 - `data-src/`: coordinates and region of the poster map (`joint_map.csv.gz`), the title+abstract maps (`abstract_map.csv.gz`, `abstract_map_regions.json`, from `2026-10-12-align-literatures` on aster), titles, years and arXiv ids
   (`joint_map_ids.csv.gz`), region names (`joint_labels.json`).
-- `data-src/m2ma_*`: hierarchical map (2D and 3D t-SNE coordinates of the joint space with management translated onto multi-agent AI, a depth-4 bisecting k-means tree per field with decoded node names), from `2026-10-12-align-literatures/m2ma.py` on aster (REPORT9).
+- `data-src/m2ma_*`: hierarchical map (2D and 3D t-SNE coordinates of the joint space with management translated onto multi-agent AI, a bisecting k-means tree per field, up to depth 7 (506 nodes) with decoded node names), from `2026-10-12-align-literatures/m2ma.py` on aster (REPORT9, REPORT10).
 - `scripts/prepare_hier.py`: writes `public/hier-data.json` for the page served at `/map/hierarchy/` (`?dim=3` for 3D; source `hierarchy/index.html`, `src/hierarchy.js`). A node opens into its children by magnification relative to the framed map, not by cluster size, because the clusters overlap in the t-SNE.
 - `scripts/prepare_data.py`: writes `public/map-data.json` (columnar; git-ignored, copied to `../map/` by the build).
 - `src/main.js`: scene, search, colour modes, hover card, click details.

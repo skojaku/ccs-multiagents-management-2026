@@ -251,7 +251,11 @@ function mountLabels(helios) {
     labelEls.push(label);
   });
   let queued = false;
+  let trailing = null;
   const schedule = () => {
+    // A trailing pass catches the pose the camera settles on after a transition.
+    clearTimeout(trailing);
+    trailing = setTimeout(() => layoutLabels(helios), 200);
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => { queued = false; layoutLabels(helios); });
@@ -299,9 +303,20 @@ function nodeMembers(i) {
   return out;
 }
 
-function frame(helios, ids, max = 800) {
+function frame(helios, ids, max = 800, openNode = null) {
   const step = Math.max(1, Math.floor(ids.length / max));
   helios.frameNetwork?.({ nodeIndices: ids.filter((_v, k) => k % step === 0), animate: true, durationMs: 600 });
+  if (openNode === null || !children[openNode].length) return;
+  // Framing a big cluster can leave the map too far out for it to open, so magnify until its children appear.
+  setTimeout(() => {
+    const n = nodes[openNode];
+    const vp = helios.renderer.camera.getUniforms().viewProjection;
+    const rel = screenScale(vp, DIM3 ? n.c3 : n.c2, viewer.clientWidth, viewer.clientHeight).scale / state.refScale;
+    const need = OPEN_AT[n.depth + 1] * 1.15;
+    if (rel >= need) return;
+    const pose = helios.cameraPose();
+    helios.transitionCamera(DIM3 ? { distance: pose.distance * rel / need } : { zoom: pose.zoom * need / rel }, { durationMs: 500 });
+  }, 750);
 }
 
 function selectNode(helios, i) {
@@ -315,15 +330,15 @@ function selectNode(helios, i) {
   if (path.length > 1) rows.push(el('div', { className: 'detail__section', children: [el('strong', { text: 'Within: ' }), el('span', { text: path.slice(0, -1).reverse().join(' ‹ ') })] }));
   if (n.corpus === 0 && n.moved) {
     rows.push(el('div', { className: 'detail__section', children: [el('strong', { text: 'Read after the shift onto multi-agent AI: ' }), el('span', { text: n.moved })] }));
-    if (n.near.length) rows.push(el('div', { className: 'detail__section', children: [el('strong', { text: 'Nearest multi-agent clusters: ' }), el('span', { text: n.near.map((x) => `${nodes[x.node].name} (${x.cos.toFixed(2)})`).join('; ') })] }));
+    if (n.near.length) rows.push(el('div', { className: 'detail__section', children: [el('strong', { text: 'Nearest multi-agent clusters (level 4): ' }), el('span', { text: n.near.map((x) => `${nodes[x.node].name} (${x.cos.toFixed(2)})`).join('; ') })] }));
   }
   rows.push(el('div', { className: 'detail__section', text: 'Name and description are the Doc2LoRA decoder\'s reading of the cluster\'s mean embedding, not a human label.' }));
   const zoom = el('button', { text: 'Zoom to this cluster', attrs: { type: 'button' } });
-  zoom.addEventListener('click', () => frame(helios, nodeMembers(i)));
+  zoom.addEventListener('click', () => frame(helios, nodeMembers(i), 800, i));
   rows.push(el('div', { className: 'detail__links', children: [zoom] }));
   detail.classList.remove('is-empty');
   detail.replaceChildren(...rows);
-  frame(helios, nodeMembers(i));
+  frame(helios, nodeMembers(i), 800, i);
 }
 
 function nearest(id, count) {
@@ -452,7 +467,7 @@ function mountHover(helios) {
   });
   helios.on('node:click', (event) => {
     const index = event?.detail?.index;
-    if (index >= 0 && Date.now() - (state.labelClickAt ?? 0) > 400) selectPaper(helios, index);
+    if (index >= 0 && Date.now() - (state.labelClickAt ?? 0) > 1200) selectPaper(helios, index);
   });
 }
 

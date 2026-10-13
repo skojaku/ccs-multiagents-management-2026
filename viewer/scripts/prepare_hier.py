@@ -1,10 +1,10 @@
 """Build public/hier-data.json for the hierarchical map from data-src/m2ma_*.
 
 m2ma_map.csv.gz         paper / node rows with 2D and 3D t-SNE coordinates (management moved onto multi-agent AI by one
-                        translation; a bisecting k-means tree of depth 4 per field, 62 nodes)
-m2ma_membership.csv.gz  the deepest tree node of every paper
-m2ma_tree.json          per node: size, decoded name and description (management also after the move), nearest
-                        multi-agent leaves
+                        translation; a bisecting k-means tree of depth up to 7 per field, 506 nodes)
+m2ma_membership_d7.csv.gz  the deepest tree node of every paper
+m2ma_tree_d7.json          per node: size, decoded name and description (management also after the move), nearest
+                        multi-agent nodes at depth 4
 
 Rows are aligned with map-data.json (joint_map_ids order); the 60 multi-agent papers without an abstract have no
 coordinates (null) and no node (-1). A node's position is the median of its members' coordinates and its radius the
@@ -20,8 +20,8 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent.parent
 ids = pd.read_csv(HERE / "data-src/joint_map_ids.csv.gz", low_memory=False)
 mp = pd.read_csv(HERE / "data-src/m2ma_map.csv.gz", low_memory=False)
-mem = pd.read_csv(HERE / "data-src/m2ma_membership.csv.gz")
-tree = json.loads((HERE / "data-src/m2ma_tree.json").read_text())["nodes"]
+mem = pd.read_csv(HERE / "data-src/m2ma_membership_d7.csv.gz")
+tree = json.loads((HERE / "data-src/m2ma_tree_d7.json").read_text())["nodes"]
 
 papers = mp[mp.kind == "paper"].copy()
 papers["paper_id"] = papers.paper_id.astype(int)
@@ -80,7 +80,7 @@ for n in order:
         "desc": n["decode"]["desc"].strip(),
         "moved": (n.get("decode_moved") or {}).get("name", "").strip(),
         "movedDesc": (n.get("decode_moved") or {}).get("desc", "").strip(),
-        "near": [{"node": index[x["id"]], "cos": x["cos"]} for x in n.get("nearest_ma_leaves", [])],
+        "near": [{"node": index[x["id"]], "cos": x["cos"]} for x in n.get("nearest_ma_d4_nodes", [])],
         "c2": [round(v, 2) for v in c2], "c3": [round(v, 2) for v in c3],
         "r2": round(r2, 2), "r3": round(r3, 2),
     })
