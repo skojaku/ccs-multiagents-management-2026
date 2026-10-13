@@ -6,7 +6,16 @@ const heliosWebSource = fileURLToPath(new URL('./node_modules/helios-web/src/ind
 // The built app is served from the repo's map/ directory on GitHub Pages.
 export default defineConfig({
   base: './',
-  build: { outDir: '../map', emptyOutDir: true },
+  build: {
+    outDir: '../map',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        hierarchy: fileURLToPath(new URL('./hierarchy/index.html', import.meta.url)),
+      },
+    },
+  },
   resolve: {
     alias: {
       'helios-web': heliosWebSource,

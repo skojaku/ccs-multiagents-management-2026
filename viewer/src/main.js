@@ -266,6 +266,12 @@ function mountPanels(helios) {
   };
   renderLegend();
   view.append(legend);
+  view.append(el('div', { className: 'layer-note', children: [
+    el('span', { text: 'Hierarchical map (zoom opens sub-clusters): ' }),
+    el('a', { text: '2D', attrs: { href: './hierarchy/', style: 'color:#eb6834' } }),
+    el('span', { text: ' · ' }),
+    el('a', { text: '3D', attrs: { href: './hierarchy/?dim=3', style: 'color:#eb6834' } }),
+  ] }));
   view.append(createSlider({ label: 'Node size', value: state.nodeSize, min: 0.5, max: 5, step: 0.1, onInput: (v) => { state.nodeSize = v; applyVisibility(helios); } }).root);
   view.append(createSlider({ label: 'Opacity', value: state.nodeOpacity, min: 0.1, max: 1, step: 0.01, onInput: (v) => { state.nodeOpacity = v; helios.nodeOpacityScale(v); helios.requestRender(); } }).root);
   ui.createPanel({ id: 'map-view', title: 'View', content: view, dock: 'top-right', position: { x: 16, y: 16 }, width: 300, minWidth: 300 });
