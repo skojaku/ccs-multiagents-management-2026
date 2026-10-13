@@ -533,7 +533,7 @@ async function bootstrap() {
   helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'initial-position' });
   helios.edgeOpacityBase(0).edgeOpacityScale(0);
   helios.semanticZoomExponent(0.6).clearColor('#0b0b0b');
-  styleNodes(helios, { rim: DIM3 ? 0.04 : 0.5 });
+  styleNodes(helios, { rim: DIM3 ? 0.03 : 0.25 });
   state.shownSet = new Set();
   applyColors(helios);
   helios.labels({ enabled: false });
