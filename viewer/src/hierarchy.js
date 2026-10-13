@@ -15,13 +15,14 @@ const DIM3 = new URLSearchParams(location.search).get('dim') === '3';
 const LABEL = 'Label';
 const CORPUS = 'CorpusId';
 const COLOR_ID = 'ColorId'; // tree-node index, or DIM / HIDDEN
+const RIM = 'RimVal'; // rim width per paper: thin normally, thick for search hits
 const SIZE = 'SizeVal'; // dot size per paper (mode, search and hiding already applied)
 const DIM = 100;
 const HIDDEN = 101;
 const POSITION = '_helios_visuals_position';
 
 const CORPUS_NAMES = ['Management', 'Multi-agent AI'];
-const DIM_COLOR = [0.3, 0.3, 0.3, 0.35];
+const DIM_COLOR = [0.25, 0.25, 0.25, 0.22];
 const HIDDEN_COLOR = [0, 0, 0, 0];
 // Clusters overlap in the map, so their spread says little about depth; levels open by zoom instead. A node splits
 // into its children once the map is magnified, relative to the framed whole map, by at least OPEN_AT[child depth].
@@ -34,7 +35,7 @@ let dfs = []; // node indices in depth-first order, so tree neighbours are neigh
 let dfsRank = [];
 let lowerTitles = [];
 
-const state = { search: '', corpora: new Set([0, 1]), colorMode: 'auto', sizeMode: 'uniform', nodeOpacity: 0.85, nodeSize: DIM3 ? 0.25 : 1.6, shown: [] };
+const state = { search: '', corpora: new Set([0, 1]), colorMode: 'auto', sizeMode: 'uniform', contrast: 2.5, rim: DIM3 ? 0.03 : 0.25, nodeOpacity: 0.85, nodeSize: DIM3 ? 0.25 : 1.6, shown: [] };
 
 const setStatus = (message) => { viewer.dataset.status = message ?? ''; };
 
@@ -119,6 +120,7 @@ async function createNetwork() {
   network.nodeAttribute(CORPUS, (_v, id) => data.corpus[id], { type: AttributeType.Int });
   network.nodeAttribute(COLOR_ID, (_v, id) => data.leaf[id], { type: AttributeType.Int });
   network.nodeAttribute(SIZE, () => state.nodeSize, { type: AttributeType.Float });
+  network.nodeAttribute(RIM, () => state.rim, { type: AttributeType.Float });
   network.defineNodeAttribute(POSITION, AttributeType.Float, 3);
   network.withBufferAccess(() => {
     const pos = network.getNodeAttributeBuffer(POSITION)?.view;
@@ -151,14 +153,18 @@ function colorNode(id) {
 
 // Relative dot size of a paper under the chosen size mode. Papers without a citation count get the smallest size.
 let citeMax = 1;
+const SMALLEST = 0.3;
+const LARGEST = 5;
+// x in 0..1 -> size factor; the exponent (state.contrast) makes the top of the range stand out.
+const spread = (x) => SMALLEST + (LARGEST - SMALLEST) * x ** state.contrast;
 function sizeFactor(id) {
   if (state.sizeMode === 'cites' && data.cites) {
     const c = data.cites[id];
-    return c === null ? 0.45 : 0.45 + 1.55 * Math.min(1, Math.log1p(c) / Math.log1p(citeMax));
+    return c === null ? SMALLEST : spread(Math.min(1, Math.log1p(c) / Math.log1p(citeMax)));
   }
   if (state.sizeMode === 'pct' && data.pct) {
     const q = data.pct[id];
-    return q === null ? 0.45 : 0.45 + 1.55 * q;
+    return q === null ? SMALLEST : spread(q);
   }
   return 1;
 }
@@ -176,12 +182,15 @@ function applyColors(helios) {
   const nodeIds = nodes.map((_n, i) => i);
   const colors = nodes.map((n, i) => (field ? nodes[pathOf(i)[0]].color : auto ? (state.zoomColors?.get(i) ?? n.color) : n.color));
   helios.nodeMapper.channel('color').from(COLOR_ID).categorical([...nodeIds, DIM, HIDDEN], [...colors, DIM_COLOR, HIDDEN_COLOR]).done();
-  const emphasis = state.search ? 2.4 : 1;
+  // While searching, hits become large and ringed in full colour; everything else shrinks and fades.
   network.nodeAttribute(SIZE, (_v, id) => {
     if (isHidden(id)) return 0;
-    return state.nodeSize * sizeFactor(id) * (matches(id) ? emphasis : state.search ? 0.6 : 1);
+    if (!state.search) return state.nodeSize * sizeFactor(id);
+    return state.nodeSize * (matches(id) ? 2.5 + 1.2 * sizeFactor(id) : 0.35);
   }, { type: AttributeType.Float });
   network.bumpNodeAttributeVersion?.(SIZE);
+  network.nodeAttribute(RIM, (_v, id) => (!state.search ? state.rim : matches(id) ? state.rim * 5 : 0), { type: AttributeType.Float });
+  network.bumpNodeAttributeVersion?.(RIM);
   helios.nodeMapper.channel('size').from(SIZE).passthrough().done();
   helios.markMappersDirty?.();
   helios.requestRender();
@@ -320,6 +329,21 @@ function mountLabels(helios) {
 
 const detail = el('aside', { className: 'detail is-empty' });
 
+// The card has to be dismissible on a phone, where it covers part of the map.
+function closeButton(helios) {
+  const button = el('button', { className: 'detail__close', text: '×', attrs: { type: 'button', 'aria-label': 'Close' } });
+  button.addEventListener('click', () => closeDetail(helios));
+  return button;
+}
+
+function closeDetail(helios) {
+  detail.classList.add('is-empty');
+  detail.replaceChildren();
+  helios.selectNodes?.([]);
+  helios.requestRender();
+}
+
+
 function nodeMembers(i) {
   const stack = [i];
   const set = new Set();
@@ -363,7 +387,7 @@ function selectNode(helios, i) {
   zoom.addEventListener('click', () => frame(helios, nodeMembers(i), 800, i));
   rows.push(el('div', { className: 'detail__links', children: [zoom] }));
   detail.classList.remove('is-empty');
-  detail.replaceChildren(...rows);
+  detail.replaceChildren(closeButton(helios), ...rows);
   frame(helios, nodeMembers(i), 800, i);
 }
 
@@ -393,6 +417,7 @@ function selectPaper(helios, id, focus = false) {
   const path = pathOf(data.leaf[id]).map((k) => nodes[k].name).slice(1);
   detail.classList.remove('is-empty');
   detail.replaceChildren(
+    closeButton(helios),
     el('div', { className: 'detail__title', text: title }),
     el('div', { className: 'detail__meta', text: `${CORPUS_NAMES[data.corpus[id]]}${data.year[id] ? `  ·  ${data.year[id]}` : ''}` }),
     el('div', { className: 'detail__path', text: path.join(' › ') }),
@@ -482,6 +507,8 @@ function mountPanels(helios) {
       options: [{ value: 'uniform', label: 'Same' }, { value: 'cites', label: 'Citations' }, { value: 'pct', label: 'Rank in year' }],
       onChange: (value) => { state.sizeMode = value; applyColors(helios); sizeNote.textContent = SIZE_NOTES[value]; },
     }).root);
+    view.append(createSlider({ label: 'Size contrast', value: state.contrast, min: 1, max: 5, step: 0.1, onInput: (v) => { state.contrast = v; applyColors(helios); } }).root);
+    sizeNote.textContent = SIZE_NOTES[state.sizeMode];
     view.append(sizeNote);
   }
   view.append(createSlider({ label: 'Node size', value: state.nodeSize, min: DIM3 ? 0.05 : 0.5, max: DIM3 ? 2 : 6, step: DIM3 ? 0.05 : 0.1, onInput: (v) => { state.nodeSize = v; applyColors(helios); } }).root);
@@ -517,6 +544,7 @@ function mountHover(helios) {
 async function bootstrap() {
   setStatus('Loading papers');
   data = await loadData();
+  if (data.cites) state.sizeMode = 'cites'; // dot size shows citations unless the page was built without them
   setStatus('Building the map');
   const network = await createNetwork();
   const helios = new Helios(network, {
@@ -536,7 +564,9 @@ async function bootstrap() {
   helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'initial-position' });
   helios.edgeOpacityBase(0).edgeOpacityScale(0);
   helios.semanticZoomExponent(0.6).clearColor('#0b0b0b');
-  styleNodes(helios, { rim: DIM3 ? 0.03 : 0.25 });
+  styleNodes(helios);
+  helios.nodeOutlineWidthBase(0).nodeOutlineWidthScale(1); // the width comes from each paper's RimVal
+  helios.nodeMapper.channel('outline').from(RIM).passthrough().done();
   state.shownSet = new Set();
   applyColors(helios);
   helios.labels({ enabled: false });
@@ -553,6 +583,7 @@ async function bootstrap() {
     state.signature = null;
     layoutLabels(helios);
   }, 1500);
+  window.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDetail(helios); });
   window.helios = helios;
   window.hier = { state, nodes, layoutLabels: () => layoutLabels(helios) };
   setStatus('');

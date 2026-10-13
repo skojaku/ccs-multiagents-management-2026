@@ -88,7 +88,7 @@ function matches(id) {
   return !state.search || lowerTitles[id].includes(state.search);
 }
 
-const DIM_COLOR = [0.3, 0.3, 0.3, 0.35];
+const DIM_COLOR = [0.25, 0.25, 0.25, 0.22];
 const HIDDEN_COLOR = [0, 0, 0, 0];
 
 function applyColorMode(helios) {
@@ -108,7 +108,7 @@ function applyVisibility(helios) {
   network.bumpNodeAttributeVersion?.(COLOR_ID);
   const base = state.nodeSize;
   const sizeIds = [...REGION_COLORS.keys(), DIM, HIDDEN];
-  const sizes = [...REGION_COLORS.keys()].map(() => base * (state.search ? 2.4 : 1)).concat([base * (state.search ? 0.6 : 1), 0]);
+  const sizes = [...REGION_COLORS.keys()].map(() => base * (state.search ? 3.6 : 1)).concat([base * (state.search ? 0.35 : 1), 0]);
   helios.nodeMapper.channel('size').from(COLOR_ID).categorical(sizeIds, sizes).done();
   helios.markMappersDirty?.();
   helios.requestRender();
@@ -286,7 +286,10 @@ function select(helios, id, focus = false) {
   const links = [el('a', { text: 'Google Scholar', attrs: { href: scholarUrl(title), target: '_blank', rel: 'noopener' } })];
   if (data.arxiv[id]) links.unshift(el('a', { text: `arXiv:${data.arxiv[id]}`, attrs: { href: `https://arxiv.org/abs/${data.arxiv[id]}`, target: '_blank', rel: 'noopener' } }));
   detail.classList.remove('is-empty');
+  const close = el('button', { className: 'detail__close', text: '×', attrs: { type: 'button', 'aria-label': 'Close' } });
+  close.addEventListener('click', () => { detail.classList.add('is-empty'); detail.replaceChildren(); helios.selectNodes?.([]); helios.requestRender(); });
   detail.replaceChildren(
+    close,
     el('div', { className: 'detail__title', text: title }),
     el('div', { className: 'detail__meta', text: describe(id).map(([k, v]) => `${k}: ${v}`).join('  ·  ') }),
     el('div', { className: 'detail__links', children: links }),
