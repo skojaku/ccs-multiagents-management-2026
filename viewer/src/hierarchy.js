@@ -97,7 +97,10 @@ async function loadData() {
   dfs.forEach((i, r) => { dfsRank[i] = r; });
   assignColors();
   lowerTitles = base.title.map((t) => t.toLowerCase());
-  if (hier.cites) citeMax = Math.max(1, [...hier.cites.filter((c) => c !== null)].sort((a, b) => a - b)[Math.floor(0.995 * hier.cites.length)] ?? 1);
+  if (hier.cites) {
+    const counted = hier.cites.filter((c) => c !== null).sort((a, b) => a - b);
+    citeMax = Math.max(1, counted[Math.floor(0.995 * (counted.length - 1))]); // the biggest dots stop at the 99.5th percentile
+  }
   return {
     title: base.title, arxiv: base.arxiv, year: base.year, corpus: base.corpus,
     cites: hier.cites ?? null, pct: hier.pct ?? null,
@@ -151,11 +154,11 @@ let citeMax = 1;
 function sizeFactor(id) {
   if (state.sizeMode === 'cites' && data.cites) {
     const c = data.cites[id];
-    return c === null ? 0.5 : 0.5 + 2.5 * Math.min(1, Math.log1p(c) / Math.log1p(citeMax));
+    return c === null ? 0.45 : 0.45 + 1.55 * Math.min(1, Math.log1p(c) / Math.log1p(citeMax));
   }
   if (state.sizeMode === 'pct' && data.pct) {
     const q = data.pct[id];
-    return q === null ? 0.5 : 0.5 + 2.5 * q;
+    return q === null ? 0.45 : 0.45 + 1.55 * q;
   }
   return 1;
 }
@@ -415,8 +418,8 @@ function topMatches(limit = 12) {
 
 const SIZE_NOTES = {
   uniform: '',
-  cites: 'Times cited in OpenAlex (March 2026 snapshot), log scale. Older papers have had longer to be cited, and fields cite at different rates.',
-  pct: 'Citations ranked among papers of the same field and year (large = in the top of its year). Removes age but not the difference between sub-fields.',
+  cites: 'Times cited in OpenAlex (March 2026 snapshot), log scale. Papers with no count are drawn smallest: that is about half of the multi-agent papers, mostly from 2025 and 2026, which OpenAlex does not list yet. A small dot there does not mean few citations. Older papers have had longer to be cited and management papers are cited far more than multi-agent ones, so this mostly separates the two fields.',
+  pct: 'Citations ranked among papers of the same field and year (large = near the top of its year). Removes the effect of age and of the field. Papers with no count are drawn smallest, as above. For the multi-agent LLM papers the counts are too low (OpenAlex misses many arXiv citations), so read the rank as relative within the field.',
 };
 const sizeNote = el('div', { className: 'layer-note' });
 
