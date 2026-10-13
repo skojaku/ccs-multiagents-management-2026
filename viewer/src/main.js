@@ -2,6 +2,7 @@ import HeliosNetwork, { AttributeType } from 'helios-network';
 import { Helios, HeliosUI } from 'helios-web';
 
 import { createChecklist, createHoverCard, createSearch, createSegmented, createSlider, el } from './ui-controls.js';
+import { styleNodes } from './node-style.js';
 import './styles.css';
 
 const viewer = document.querySelector('#viewer');
@@ -339,7 +340,8 @@ async function bootstrap() {
   helios.stopLayout?.('map-static');
   helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'initial-position' });
   helios.edgeOpacityBase(0).edgeOpacityScale(0);
-  helios.nodeOutlineWidthBase(0).nodeOutlineWidthScale(0).semanticZoomExponent(0.6).clearColor('#0b0b0b');
+  helios.semanticZoomExponent(0.6).clearColor('#0b0b0b');
+  styleNodes(helios);
   applyColorMode(helios);
   applyVisibility(helios);
   helios.labels({ enabled: false });

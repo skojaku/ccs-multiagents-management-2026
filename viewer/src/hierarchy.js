@@ -2,6 +2,7 @@ import HeliosNetwork, { AttributeType } from 'helios-network';
 import { Helios, HeliosUI } from 'helios-web';
 
 import { createChecklist, createHoverCard, createSearch, createSegmented, createSlider, el } from './ui-controls.js';
+import { styleNodes } from './node-style.js';
 import './styles.css';
 
 // Hierarchical map: a bisecting k-means tree per field (depth up to 7); zooming in opens a node into its two
@@ -14,6 +15,7 @@ const DIM3 = new URLSearchParams(location.search).get('dim') === '3';
 const LABEL = 'Label';
 const CORPUS = 'CorpusId';
 const COLOR_ID = 'ColorId'; // tree-node index, or DIM / HIDDEN
+const SIZE = 'SizeVal'; // dot size per paper (mode, search and hiding already applied)
 const DIM = 100;
 const HIDDEN = 101;
 const POSITION = '_helios_visuals_position';
@@ -32,7 +34,7 @@ let dfs = []; // node indices in depth-first order, so tree neighbours are neigh
 let dfsRank = [];
 let lowerTitles = [];
 
-const state = { search: '', corpora: new Set([0, 1]), colorMode: 'auto', nodeOpacity: 0.85, nodeSize: DIM3 ? 0.25 : 1.6, shown: [] };
+const state = { search: '', corpora: new Set([0, 1]), colorMode: 'auto', sizeMode: 'uniform', nodeOpacity: 0.85, nodeSize: DIM3 ? 0.25 : 1.6, shown: [] };
 
 const setStatus = (message) => { viewer.dataset.status = message ?? ''; };
 
@@ -95,8 +97,10 @@ async function loadData() {
   dfs.forEach((i, r) => { dfsRank[i] = r; });
   assignColors();
   lowerTitles = base.title.map((t) => t.toLowerCase());
+  if (hier.cites) citeMax = Math.max(1, [...hier.cites.filter((c) => c !== null)].sort((a, b) => a - b)[Math.floor(0.995 * hier.cites.length)] ?? 1);
   return {
     title: base.title, arxiv: base.arxiv, year: base.year, corpus: base.corpus,
+    cites: hier.cites ?? null, pct: hier.pct ?? null,
     leaf: hier.node, x: DIM3 ? hier.x3 : hier.x2, y: DIM3 ? hier.y3 : hier.y2, z: DIM3 ? hier.z3 : null,
   };
 }
@@ -111,6 +115,7 @@ async function createNetwork() {
   network.nodeAttribute(LABEL, (_v, id) => data.title[id], { type: AttributeType.String });
   network.nodeAttribute(CORPUS, (_v, id) => data.corpus[id], { type: AttributeType.Int });
   network.nodeAttribute(COLOR_ID, (_v, id) => data.leaf[id], { type: AttributeType.Int });
+  network.nodeAttribute(SIZE, () => state.nodeSize, { type: AttributeType.Float });
   network.defineNodeAttribute(POSITION, AttributeType.Float, 3);
   network.withBufferAccess(() => {
     const pos = network.getNodeAttributeBuffer(POSITION)?.view;
@@ -141,6 +146,20 @@ function colorNode(id) {
   return ancestorAtDepth(leaf, Number(state.colorMode));
 }
 
+// Relative dot size of a paper under the chosen size mode. Papers without a citation count get the smallest size.
+let citeMax = 1;
+function sizeFactor(id) {
+  if (state.sizeMode === 'cites' && data.cites) {
+    const c = data.cites[id];
+    return c === null ? 0.5 : 0.5 + 2.5 * Math.min(1, Math.log1p(c) / Math.log1p(citeMax));
+  }
+  if (state.sizeMode === 'pct' && data.pct) {
+    const q = data.pct[id];
+    return q === null ? 0.5 : 0.5 + 2.5 * q;
+  }
+  return 1;
+}
+
 function applyColors(helios) {
   const { network } = helios;
   const field = state.colorMode === 'field';
@@ -154,9 +173,13 @@ function applyColors(helios) {
   const nodeIds = nodes.map((_n, i) => i);
   const colors = nodes.map((n, i) => (field ? nodes[pathOf(i)[0]].color : auto ? (state.zoomColors?.get(i) ?? n.color) : n.color));
   helios.nodeMapper.channel('color').from(COLOR_ID).categorical([...nodeIds, DIM, HIDDEN], [...colors, DIM_COLOR, HIDDEN_COLOR]).done();
-  const base = state.nodeSize * (state.search ? 2.4 : 1);
-  helios.nodeMapper.channel('size').from(COLOR_ID)
-    .categorical([...nodeIds, DIM, HIDDEN], [...nodeIds.map(() => base), state.nodeSize * (state.search ? 0.6 : 1), 0]).done();
+  const emphasis = state.search ? 2.4 : 1;
+  network.nodeAttribute(SIZE, (_v, id) => {
+    if (isHidden(id)) return 0;
+    return state.nodeSize * sizeFactor(id) * (matches(id) ? emphasis : state.search ? 0.6 : 1);
+  }, { type: AttributeType.Float });
+  network.bumpNodeAttributeVersion?.(SIZE);
+  helios.nodeMapper.channel('size').from(SIZE).passthrough().done();
   helios.markMappersDirty?.();
   helios.requestRender();
 }
@@ -370,6 +393,7 @@ function selectPaper(helios, id, focus = false) {
     el('div', { className: 'detail__title', text: title }),
     el('div', { className: 'detail__meta', text: `${CORPUS_NAMES[data.corpus[id]]}${data.year[id] ? `  ·  ${data.year[id]}` : ''}` }),
     el('div', { className: 'detail__path', text: path.join(' › ') }),
+    data.cites && data.cites[id] !== null ? el('div', { className: 'detail__meta', text: `Cited ${data.cites[id].toLocaleString()} times (OpenAlex)` }) : null,
     el('div', { className: 'detail__links', children: links }),
   );
   if (focus) helios.frameNetwork?.({ nodeIndices: nearest(id, 150), animate: true, durationMs: 500 });
@@ -388,6 +412,13 @@ function topMatches(limit = 12) {
   for (let i = 0; i < per; i += 1) for (const list of lists) if (list[i] != null) merged.push(list[i]);
   return merged.slice(0, limit);
 }
+
+const SIZE_NOTES = {
+  uniform: '',
+  cites: 'Times cited in OpenAlex (March 2026 snapshot), log scale. Older papers have had longer to be cited, and fields cite at different rates.',
+  pct: 'Citations ranked among papers of the same field and year (large = in the top of its year). Removes age but not the difference between sub-fields.',
+};
+const sizeNote = el('div', { className: 'layer-note' });
 
 function mountPanels(helios) {
   const ui = new HeliosUI({ helios, theme: 'dark', allowDrag: true, layerName: 'map-ui', persistenceIndicators: false });
@@ -441,6 +472,15 @@ function mountPanels(helios) {
     options: [{ value: 'auto', label: 'Zoom' }, { value: 'field', label: 'Field' }, { value: '1', label: 'L1' }, { value: '2', label: 'L2' }, { value: '3', label: 'L3' }, { value: '4', label: 'L4' }],
     onChange: (value) => { state.colorMode = value; applyColors(helios); paintLabels(); },
   }).root);
+  if (data.cites) {
+    view.append(createSegmented({
+      label: 'Dot size shows',
+      value: state.sizeMode,
+      options: [{ value: 'uniform', label: 'Same' }, { value: 'cites', label: 'Citations' }, { value: 'pct', label: 'Rank in year' }],
+      onChange: (value) => { state.sizeMode = value; applyColors(helios); sizeNote.textContent = SIZE_NOTES[value]; },
+    }).root);
+    view.append(sizeNote);
+  }
   view.append(createSlider({ label: 'Node size', value: state.nodeSize, min: DIM3 ? 0.05 : 0.5, max: DIM3 ? 2 : 6, step: DIM3 ? 0.05 : 0.1, onInput: (v) => { state.nodeSize = v; applyColors(helios); } }).root);
   view.append(createSlider({ label: 'Opacity', value: state.nodeOpacity, min: 0.1, max: 1, step: 0.01, onInput: (v) => { state.nodeOpacity = v; helios.nodeOpacityScale(v); helios.requestRender(); } }).root);
   const fit = el('button', { className: 'segmented__button', text: 'Fit all', attrs: { type: 'button' } });
@@ -492,7 +532,8 @@ async function bootstrap() {
   helios.stopLayout?.('map-static');
   helios.behavior?.layout?.applyPositionAttribute?.(POSITION, { reason: 'initial-position' });
   helios.edgeOpacityBase(0).edgeOpacityScale(0);
-  helios.nodeOutlineWidthBase(0).nodeOutlineWidthScale(0).semanticZoomExponent(0.6).clearColor('#0b0b0b');
+  helios.semanticZoomExponent(0.6).clearColor('#0b0b0b');
+  styleNodes(helios, { rim: DIM3 ? 0.04 : 0.5 });
   state.shownSet = new Set();
   applyColors(helios);
   helios.labels({ enabled: false });

@@ -91,5 +91,20 @@ out = {
     "x3": column("x3d"), "y3": column("y3d"), "z3": column("z3d"),
     "nodes": nodes,
 }
+cites_file = HERE / "data-src/cites.csv.gz"
+if cites_file.exists():
+    # cited_by: times cited in the OpenAlex snapshot (NaN when the paper could not be matched);
+    # cited_pct: rank of that count among papers of the same field and year (0..1)
+    c = pd.read_csv(cites_file)
+    ck = {k: i for i, k in enumerate(zip(c.corpus, c.paper_id.astype(int)))}
+    crow = [ck.get(k, -1) for k in zip(ids.corpus, ids.paper_id.astype(int))]
+
+    def pick_c(col, nd=None):
+        v = c[col].tolist()
+        return [None if r < 0 or pd.isna(v[r]) else (int(v[r]) if nd is None else round(float(v[r]), nd)) for r in crow]
+
+    out["cites"] = pick_c("cited_by")
+    out["pct"] = pick_c("cited_pct", 3)
+
 (HERE / "public/hier-data.json").write_text(json.dumps(out, separators=(",", ":")))
 print(len(nodes), "nodes;", (HERE / "public/hier-data.json").stat().st_size // 1024, "KB")
